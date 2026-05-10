@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Realtime English to Japanese</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="stage">
+        <div class="mast">
+          <div>
+            <p class="eyebrow">OpenAI Realtime / gpt-realtime-2</p>
+            <h1>Translation to Japanese</h1>
+          </div>
+          <div class="status" id="status">待機中</div>
+        </div>
+        <div id="notice" class="notice" hidden></div>
+
+        <div class="controls" aria-label="操作">
+          <label class="selectField">
+            <span>入力</span>
+            <select id="inputMode">
+              <option value="microphone">マイク</option>
+              <option value="tab">タブ/画面音声</option>
+              <option value="mixed">マイク + タブ音声</option>
+            </select>
+          </label>
+          <button id="startButton" class="primary" type="button">録音開始</button>
+          <button id="stopButton" type="button" disabled>停止</button>
+          <button id="clearButton" type="button">クリア</button>
+          <label class="toggle">
+            <input id="audioToggle" type="checkbox" />
+            <span>翻訳音声も再生</span>
+          </label>
+        </div>
+
+        <div class="meter" aria-hidden="true">
+          <svg class="waveform" viewBox="0 0 640 72" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="waveGradient" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#6ad7c7" />
+                <stop offset="100%" stop-color="#ffcf4f" />
+              </linearGradient>
+            </defs>
+            <path id="waveFill" d="M0 36 L640 36 L640 72 L0 72 Z"></path>
+            <path id="wavePath" d="M0 36 L640 36"></path>
+          </svg>
+        </div>
+
+        <div class="panes">
+          <article class="pane">
+            <div class="paneHead">
+              <span>Source</span>
+              <strong>English</strong>
+            </div>
+            <div id="sourceText" class="transcript muted">英語音声を待っています。</div>
+          </article>
+
+          <article class="pane target">
+            <div class="paneHead">
+              <span>Translation</span>
+              <strong>Japanese</strong>
+            </div>
+            <div id="targetText" class="transcript">ここに日本語の翻訳文字起こしが表示されます。</div>
+          </article>
+        </div>
+
+        <details class="debug">
+          <summary>接続ログ / 入力メモ</summary>
+          <p class="note">
+            タブや YouTube の音声を使う場合は、共有ダイアログで対象タブを選び「タブの音声を共有」を有効にしてください。
+          </p>
+          <pre id="log"></pre>
+        </details>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
