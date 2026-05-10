@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
+import { sessionConfig } from "./realtime-session.js";
 
 const port = Number(process.env.PORT || 3002);
 const publicDir = join(process.cwd(), "public");
@@ -11,28 +12,6 @@ const contentTypes = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
-};
-
-const sessionConfig = {
-  type: "realtime",
-  model: "gpt-realtime-2",
-  output_modalities: ["text"],
-  instructions: [
-    "You are a live English-to-Japanese interpreter.",
-    "Translate spoken English into natural Japanese in real time.",
-    "Return only Japanese transcription text.",
-    "Do not answer questions, add explanations, or describe your task.",
-    "Keep numbers, names, dates, currencies, and technical terms accurate.",
-  ].join(" "),
-  audio: {
-    input: {
-      transcription: {
-        model: "gpt-4o-transcribe",
-        language: "en",
-      },
-      turn_detection: null,
-    },
-  },
 };
 
 function sendJson(res, status, data) {

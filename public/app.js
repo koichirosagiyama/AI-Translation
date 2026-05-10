@@ -24,17 +24,12 @@ let peerConnection;
 let dataChannel;
 let audioInput;
 let levelMonitor;
-let commitTimer;
 let remoteAudio;
 let connectedAt;
 let responseInProgress = false;
-let responsePendingCommit = false;
 let translationFlushTimer;
 let lastActiveAudioAt = 0;
-let lastCommitAt = 0;
 let lastLoudAudioAt = 0;
-let chunkStartedAt = 0;
-let pendingSpeech = false;
 let textTranslationBuffer = "";
 let pendingTranslationText = "";
 const waveSamples = Array.from({ length: 48 }, () => 0.02);
@@ -44,14 +39,6 @@ const state = {
   target: [],
   currentTarget: "",
   currentSource: "",
-};
-
-const chunkTiming = {
-  activeWindowMs: 3000,
-  pauseCommitMs: 350,
-  maxChunkMs: 1500,
-  minCommitIntervalMs: 300,
-  tickMs: 300,
 };
 
 function setStatus(text, tone = "idle") {
@@ -131,11 +118,7 @@ function startLevelMonitor(stream) {
     bestPeak = Math.max(bestPeak, peak);
     const active = rms > 0.015 || peak > 0.08;
     const loud = rms > 0.045 || peak > 0.18;
-    if (active) {
-      lastActiveAudioAt = Date.now();
-      if (!pendingSpeech) chunkStartedAt = lastActiveAudioAt;
-      pendingSpeech = true;
-    }
+    if (active) lastActiveAudioAt = Date.now();
     if (loud) lastLoudAudioAt = Date.now();
 
     if (!lastLog || now - lastLog > 3000) {
@@ -165,39 +148,6 @@ function sendRealtimeEvent(event) {
   if (dataChannel?.readyState !== "open") return false;
   dataChannel.send(JSON.stringify(event));
   return true;
-}
-
-function startChunkedTranslation() {
-  commitTimer = window.setInterval(() => {
-    const now = Date.now();
-    const hasRecentAudio = now - lastActiveAudioAt < chunkTiming.activeWindowMs;
-    const pauseAfterSpeech = pendingSpeech && now - lastActiveAudioAt > chunkTiming.pauseCommitMs;
-    const maxChunkReached = pendingSpeech && now - chunkStartedAt > chunkTiming.maxChunkMs;
-    const enoughTimeSinceCommit = now - lastCommitAt > chunkTiming.minCommitIntervalMs;
-
-    if (
-      !hasRecentAudio ||
-      responseInProgress ||
-      responsePendingCommit ||
-      !enoughTimeSinceCommit ||
-      (!pauseAfterSpeech && !maxChunkReached)
-    ) {
-      return;
-    }
-
-    const eventId = `commit_${now}`;
-    sendRealtimeEvent({ type: "input_audio_buffer.commit", event_id: eventId });
-    responsePendingCommit = true;
-    lastCommitAt = now;
-    chunkStartedAt = 0;
-    pendingSpeech = false;
-    log("翻訳チャンク送信", { eventId, reason: pauseAfterSpeech ? "pause" : "maxChunk" });
-  }, chunkTiming.tickMs);
-}
-
-function stopChunkedTranslation() {
-  if (commitTimer) window.clearInterval(commitTimer);
-  commitTimer = undefined;
 }
 
 function scheduleTranslationFlush(delay = 700) {
@@ -343,7 +293,7 @@ function handleEvent(event) {
       setStatus("翻訳中", "work");
       break;
     case "input_audio_buffer.committed":
-      responsePendingCommit = false;
+      log("音声チャンク確定", { itemId: event.item_id });
       break;
     case "conversation.item.input_audio_transcription.delta":
       state.currentSource += event.delta || "";
@@ -390,10 +340,6 @@ function handleEvent(event) {
     case "error":
       setStatus("エラー", "error");
       log("API エラー", event.error || event);
-      if (event.error?.code === "input_audio_buffer_commit_empty") {
-        responsePendingCommit = false;
-        responseInProgress = false;
-      }
       break;
     default:
       if (event.type?.includes("rate_limits")) return;
@@ -435,7 +381,6 @@ async function start() {
       connectedAt = Date.now();
       setStatus("接続中", "live");
       log("データチャンネル接続");
-      startChunkedTranslation();
     };
     dataChannel.onmessage = ({ data }) => handleEvent(JSON.parse(data));
     dataChannel.onerror = () => setStatus("接続エラー", "error");
@@ -475,7 +420,6 @@ async function start() {
 }
 
 function stop({ preserveStatus = false } = {}) {
-  stopChunkedTranslation();
   stopTranslationFlush();
   dataChannel?.close();
   peerConnection?.close();
@@ -489,14 +433,10 @@ function stop({ preserveStatus = false } = {}) {
   audioInput = undefined;
   remoteAudio = undefined;
   responseInProgress = false;
-  responsePendingCommit = false;
   pendingTranslationText = "";
   textTranslationBuffer = "";
   lastActiveAudioAt = 0;
-  lastCommitAt = 0;
   lastLoudAudioAt = 0;
-  chunkStartedAt = 0;
-  pendingSpeech = false;
   startButton.disabled = false;
   stopButton.disabled = true;
   inputMode.disabled = false;
